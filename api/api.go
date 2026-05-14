@@ -22,7 +22,7 @@ import (
 
 const (
 	_RESPONSE_TIMEOUT   = 2500 * time.Millisecond
-	_TRACK_READ_TIMEOUT = 1500 * time.Millisecond
+	_TRACK_READ_TIMEOUT = 3 * time.Second
 	_TIMESTAMP_FORMAT   = "2006-01-02T15:04:05.999Z"
 )
 
