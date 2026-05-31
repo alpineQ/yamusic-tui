@@ -43,32 +43,50 @@ func (m *Model) feedbackOnTrack(batch string) *api.RotorFeedback {
 	return fb
 }
 
-func (m *Model) rotateTracks(currentPlaylist *playlist.Item) {
-	if !currentPlaylist.Rotor {
+func (m *Model) requestRotorTracks(currentPlaylist *playlist.Item) {
+	if !currentPlaylist.Rotor || m.client == nil {
 		return
 	}
 
-	suggestedTracks, err := m.client.RotorSessionTracks(currentPlaylist.SessionId, []*api.RotorFeedback{}, currentPlaylist.Tracks)
-	if err != nil {
-		log.Print(log.LVL_ERROR, "failed to obtain more rotor tracks: %s", err)
-		m.tracker.ShowError("next track obtain failure")
-		m.Send(tracker.STOP)
+	sessionId := currentPlaylist.SessionId
+	queue := append([]api.Track(nil), currentPlaylist.Tracks...)
+
+	go func() {
+		suggestedTracks, err := m.client.RotorSessionTracks(sessionId, []*api.RotorFeedback{}, queue)
+		if err != nil {
+			log.Print(log.LVL_ERROR, "failed to obtain more rotor tracks: %s", err)
+			return
+		}
+		tracks := make([]api.Track, 0, len(suggestedTracks.Sequence))
+		for _, item := range suggestedTracks.Sequence {
+			tracks = append(tracks, item.Track)
+		}
+		m.Send(RotorTracksMsg{SessionId: sessionId, SessionBatch: suggestedTracks.BatchId, Tracks: tracks})
+	}()
+}
+
+func (m *Model) appendRotorTracks(msg RotorTracksMsg) {
+	if m.currentPlaylistIndex < 0 {
+		return
+	}
+	currentPlaylist := m.playlists.Items()[m.currentPlaylistIndex]
+	if !currentPlaylist.Rotor || currentPlaylist.SessionId != msg.SessionId {
 		return
 	}
 
-	currentPlaylist.SessionBatch = suggestedTracks.BatchId
+	currentPlaylist.SessionBatch = msg.SessionBatch
 
 	existing := make(map[string]bool, len(currentPlaylist.Tracks))
 	for _, t := range currentPlaylist.Tracks {
 		existing[t.Id] = true
 	}
 	addedStart := len(currentPlaylist.Tracks)
-	for _, item := range suggestedTracks.Sequence {
-		if existing[item.Track.Id] {
+	for _, t := range msg.Tracks {
+		if existing[t.Id] {
 			continue
 		}
-		existing[item.Track.Id] = true
-		currentPlaylist.Tracks = append(currentPlaylist.Tracks, item.Track)
+		existing[t.Id] = true
+		currentPlaylist.Tracks = append(currentPlaylist.Tracks, t)
 	}
 
 	if len(currentPlaylist.Tracks) == addedStart {
@@ -177,7 +195,7 @@ func (m *Model) nextTrack() {
 	}
 
 	if currentPlaylist.CurrentTrack == len(currentPlaylist.Tracks)-1 {
-		m.rotateTracks(currentPlaylist)
+		m.requestRotorTracks(currentPlaylist)
 	}
 
 	m.playTrack(track)
@@ -405,7 +423,7 @@ func (m *Model) playSelectedPlaylist(trackIndex int) {
 
 	if selectedPlaylist.Rotor {
 		if trackIndex == len(selectedPlaylist.Tracks)-1 {
-			m.rotateTracks(selectedPlaylist)
+			m.requestRotorTracks(selectedPlaylist)
 		}
 		if m.currentPlaylistIndex != m.playlists.Index() {
 			ev := api.NewRadioFeedbackEvent(api.EV_RADIO_STARTED)

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 
 const (
 	_RESPONSE_TIMEOUT   = 2500 * time.Millisecond
+	_DIAL_TIMEOUT       = 3 * time.Second
 	_TRACK_READ_TIMEOUT = 3 * time.Second
 	_TIMESTAMP_FORMAT   = "2006-01-02T15:04:05.999Z"
 )
@@ -51,6 +53,7 @@ var mTLSConfig = &tls.Config{
 var httpClient = http.Client{Transport: &http.Transport{
 	TLSClientConfig:       mTLSConfig,
 	ResponseHeaderTimeout: _RESPONSE_TIMEOUT,
+	DialContext:           (&net.Dialer{Timeout: _DIAL_TIMEOUT}).DialContext,
 }}
 
 func nowTimestamp() string {
@@ -203,6 +206,7 @@ func SetupClient(proxyUrl string) {
 	transport := &http.Transport{
 		TLSClientConfig:       mTLSConfig,
 		ResponseHeaderTimeout: _RESPONSE_TIMEOUT,
+		DialContext:           (&net.Dialer{Timeout: _DIAL_TIMEOUT}).DialContext,
 	}
 
 	if len(proxyUrl) > 0 {

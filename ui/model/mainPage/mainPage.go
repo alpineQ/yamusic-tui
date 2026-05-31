@@ -41,6 +41,12 @@ type MyWaveRefreshedMsg struct {
 	Session api.StationTracks
 }
 
+type RotorTracksMsg struct {
+	SessionId    string
+	SessionBatch string
+	Tracks       []api.Track
+}
+
 type PlaylistsRefreshedMsg struct {
 	Entries []cache.PlaylistEntry
 }
@@ -168,6 +174,10 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+		return m, nil
+
+	case RotorTracksMsg:
+		m.appendRotorTracks(msg)
 		return m, nil
 
 	case PlaylistsRefreshedMsg:
