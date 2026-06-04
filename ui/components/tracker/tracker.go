@@ -122,6 +122,7 @@ func New(p *tea.Program, likesMap *map[string]bool) *Model {
 		model.PrettyExit(err, 12)
 	}
 	<-readyChan
+	m.playerContext.Suspend()
 
 	return m
 }
@@ -390,6 +391,7 @@ func (m *Model) StartTrack(track *api.Track, reader *stream.BufferedStream, lyri
 	m.trackWrapper.NewReader(reader)
 	m.player = m.playerContext.NewPlayer(m.trackWrapper)
 	m.player.SetVolume(0)
+	m.playerContext.Resume()
 	m.player.Play()
 	m.lyrics = lyrics
 	m.paused = false
@@ -416,6 +418,7 @@ func (m *Model) Stop() {
 	m.player = nil
 	m.playtime += time.Since(m.playStarted)
 	m.paused = true
+	m.playerContext.Suspend()
 }
 
 func (m *Model) IsPlaying() bool {
@@ -440,6 +443,7 @@ func (m *Model) Play() {
 	m.volume = config.Current.Volume
 	m.volumeIncremet = m.volume / _VOLUME_FADE_STEPS
 	m.player.SetVolume(0)
+	m.playerContext.Resume()
 	m.player.Play()
 	m.paused = false
 	m.playStarted = time.Now()
@@ -540,6 +544,10 @@ func (m *Model) volumeFadeTick() {
 
 	if m.volumeIncremet == 0 {
 		m.player.SetVolume(0)
+		if m.paused {
+			m.player.Pause()
+			m.playerContext.Suspend()
+		}
 		return
 	}
 
@@ -559,6 +567,7 @@ func (m *Model) volumeFadeTick() {
 		m.player.SetVolume(targetVolume)
 		if m.paused {
 			m.player.Pause()
+			m.playerContext.Suspend()
 		}
 	}
 }

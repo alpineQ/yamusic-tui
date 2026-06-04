@@ -17,7 +17,9 @@
 
           src = ./.;
 
-          vendorHash = "sha256-x1dYqdsJtcankWjoq94CbBDx5iaroN+2aN/QoByq2t0=";
+          vendorHash = "sha256-DdciVdwYjoMGRnhUey8QOVHTL8cc1uYfjSCN6DNiA50=";
+
+          subPackages = [ "." ];
 
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs = [ pkgs.alsa-lib ];
