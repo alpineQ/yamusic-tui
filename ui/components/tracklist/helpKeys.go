@@ -17,6 +17,7 @@ type helpKeyMap struct {
 	Search             key.Binding
 	Share              key.Binding
 	Shuffle            key.Binding
+	WaveSettings       key.Binding
 	Reload             key.Binding
 	ShowHelp           key.Binding
 	CloseHelp          key.Binding
@@ -39,6 +40,7 @@ func newHelpMap() *helpKeyMap {
 		Search:             key.NewBinding(controls.TracksSearch.Binding(), controls.TracksSearch.Help("search")),
 		Share:              key.NewBinding(controls.TracksShare.Binding(), controls.TracksShare.Help("share")),
 		Shuffle:            key.NewBinding(controls.TracksShuffle.Binding(), controls.TracksShuffle.Help("shuffle")),
+		WaveSettings:       key.NewBinding(controls.WaveSettings.Binding(), controls.WaveSettings.Help("wave settings")),
 		Reload:             key.NewBinding(controls.Reload.Binding(), controls.Reload.Help("reload")),
 		HideTracklist:      key.NewBinding(controls.TracksHide.Binding(), controls.TracksHide.Help("hide")),
 		ShowHelp:           key.NewBinding(controls.ShowAllKeys.Binding(), controls.ShowAllKeys.Help("show keys")),
@@ -61,7 +63,7 @@ func (k helpKeyMap) FullHelp() [][]key.Binding {
 		bindings[2] = append(bindings[2], k.Shuffle)
 	}
 
-	return append(bindings, []key.Binding{k.Reload, k.HideTracklist, k.CloseHelp})
+	return append(bindings, []key.Binding{k.WaveSettings, k.Reload, k.HideTracklist, k.CloseHelp})
 }
 
 func (k helpKeyMap) HelpHeight() int {

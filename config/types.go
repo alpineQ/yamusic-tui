@@ -91,13 +91,14 @@ type Style struct {
 
 type Controls struct {
 	// Main control
-	Quit        *Key `yaml:"quit"`
-	Apply       *Key `yaml:"apply"`
-	Cancel      *Key `yaml:"cancel"`
-	CursorUp    *Key `yaml:"cursor-up"`
-	CursorDown  *Key `yaml:"cursor-down"`
-	Reload      *Key `yaml:"reload"`
-	ShowAllKeys *Key `yaml:"show-all-kyes"`
+	Quit         *Key `yaml:"quit"`
+	Apply        *Key `yaml:"apply"`
+	Cancel       *Key `yaml:"cancel"`
+	CursorUp     *Key `yaml:"cursor-up"`
+	CursorDown   *Key `yaml:"cursor-down"`
+	Reload       *Key `yaml:"reload"`
+	WaveSettings *Key `yaml:"wave-settings"`
+	ShowAllKeys  *Key `yaml:"show-all-kyes"`
 	// Playlists control
 	PlaylistsUp     *Key `yaml:"playlists-up"`
 	PlaylistsDown   *Key `yaml:"playlists-down"`
@@ -133,6 +134,12 @@ type Search struct {
 	Playlists bool `yaml:"playlists"`
 }
 
+type Wave struct {
+	MoodEnergy string `yaml:"mood-energy"`
+	Diversity  string `yaml:"diversity"`
+	Language   string `yaml:"language"`
+}
+
 type Config struct {
 	Token          string    `yaml:"token"`
 	BufferSize     float64   `yaml:"buffer-size-ms"`
@@ -146,6 +153,7 @@ type Config struct {
 	CacheDir       string    `yaml:"cache-dir"`
 	Proxy          string    `yaml:"proxy"`
 	Search         *Search   `yaml:"search"`
+	Wave           *Wave     `yaml:"wave"`
 	Controls       *Controls `yaml:"controls"`
 	Style          *Style    `yaml:"style"`
 }
@@ -165,6 +173,11 @@ var defaultConfig = Config{
 		Albums:    false,
 		Playlists: false,
 	},
+	Wave: &Wave{
+		MoodEnergy: "all",
+		Diversity:  "default",
+		Language:   "any",
+	},
 	Controls: &Controls{
 		Quit:                     NewKey("ctrl+q,ctrl+c"),
 		Apply:                    NewKey("enter"),
@@ -172,6 +185,7 @@ var defaultConfig = Config{
 		CursorUp:                 NewKey("up"),
 		CursorDown:               NewKey("down"),
 		Reload:                   NewKey("ctrl+\\"),
+		WaveSettings:             NewKey("w"),
 		ShowAllKeys:              NewKey("?"),
 		PlaylistsUp:              NewKey("ctrl+up"),
 		PlaylistsDown:            NewKey("ctrl+down"),

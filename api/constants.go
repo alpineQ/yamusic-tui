@@ -29,3 +29,9 @@ var (
 		Tag:  "onyourwave",
 	}
 )
+
+type RotorSettings struct {
+	MoodEnergy string
+	Diversity  string
+	Language   string
+}

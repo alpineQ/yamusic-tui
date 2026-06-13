@@ -17,6 +17,7 @@ import (
 	"github.com/dece2183/yamusic-tui/ui/components/search"
 	"github.com/dece2183/yamusic-tui/ui/components/tracker"
 	"github.com/dece2183/yamusic-tui/ui/components/tracklist"
+	"github.com/dece2183/yamusic-tui/ui/components/wavesettings"
 	"github.com/dece2183/yamusic-tui/ui/model"
 	"github.com/dece2183/yamusic-tui/ui/style"
 
@@ -38,6 +39,10 @@ type LikedTracksRefreshedMsg struct {
 }
 
 type MyWaveRefreshedMsg struct {
+	Session api.StationTracks
+}
+
+type WaveSettingsAppliedMsg struct {
 	Session api.StationTracks
 }
 
@@ -65,10 +70,12 @@ type Model struct {
 
 	searchDialog           *search.Model
 	inputDialog            *input.Model
+	waveDialog             *wavesettings.Model
 	isLoading              bool
 	isSearchActive         bool
 	isAddPlaylistActive    bool
 	isRenamePlaylistActive bool
+	isWaveActive           bool
 	isPlaylistHideOverride bool
 
 	currentPlaylistIndex int
@@ -92,6 +99,7 @@ func New(mediaHandler handler.MediaHandler) *Model {
 	m.tracker = tracker.New(m.program, &m.likedTracksMap)
 	m.searchDialog = search.New()
 	m.inputDialog = input.New()
+	m.waveDialog = wavesettings.New()
 
 	return m
 }
@@ -180,6 +188,38 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendRotorTracks(msg)
 		return m, nil
 
+	case WaveSettingsAppliedMsg:
+		for i, st := range m.playlists.Items() {
+			if st.Kind != playlist.MYWAVE {
+				continue
+			}
+			st.StationId = msg.Session.Id
+			st.SessionId = msg.Session.RadioSessionId
+			st.SessionBatch = msg.Session.BatchId
+			st.Tracks = make([]api.Track, 0, len(msg.Session.Sequence))
+			for _, item := range msg.Session.Sequence {
+				st.Tracks = append(st.Tracks, item.Track)
+			}
+			st.CurrentTrack = 0
+			st.SelectedTrack = 0
+			m.playlists.SetItem(i, st)
+			if m.playlists.SelectedItem().Kind == playlist.MYWAVE {
+				m.displayPlaylist(st)
+			}
+			if config.MetaCacheEnabled() && len(st.Tracks) > 0 {
+				if werr := cache.WriteMyWave(&cache.MyWaveData{
+					StationId:    st.StationId,
+					SessionId:    st.SessionId,
+					SessionBatch: st.SessionBatch,
+					Track:        st.Tracks[0],
+				}); werr != nil {
+					log.Print(log.LVL_WARNIGN, "failed to write mywave cache: %s", werr)
+				}
+			}
+			break
+		}
+		return m, nil
+
 	case PlaylistsRefreshedMsg:
 		entryByKind := make(map[uint64]cache.PlaylistEntry, len(msg.Entries))
 		for _, e := range msg.Entries {
@@ -217,6 +257,13 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		case m.isRenamePlaylistActive:
 			m.inputDialog, cmd = m.inputDialog.Update(message)
 			cmds = append(cmds, cmd)
+		case m.isWaveActive:
+			m.waveDialog, cmd = m.waveDialog.Update(message)
+			cmds = append(cmds, cmd)
+		case controls.WaveSettings.Contains(keypress):
+			w := config.Current.Wave
+			m.waveDialog.SetValues(w.MoodEnergy, w.Diversity, w.Language)
+			m.isWaveActive = true
 		case controls.Reload.Contains(keypress):
 			m.isLoading = true
 			cmd = m.playlists.Reset()
@@ -358,6 +405,14 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.renamePlaylistControl(msg)
 		cmds = append(cmds, cmd)
 
+	// wave settings dialog control update
+	case wavesettings.Control:
+		m.isWaveActive = false
+		if msg == wavesettings.APPLY {
+			cmd = m.applyWaveSettings()
+			cmds = append(cmds, cmd)
+		}
+
 	default:
 		if m.isLoading {
 			m.spinner, cmd = m.spinner.Update(message)
@@ -367,6 +422,9 @@ func (m *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		} else if m.isRenamePlaylistActive {
 			m.inputDialog, cmd = m.inputDialog.Update(message)
+			cmds = append(cmds, cmd)
+		} else if m.isWaveActive {
+			m.waveDialog, cmd = m.waveDialog.Update(message)
 			cmds = append(cmds, cmd)
 		} else {
 			m.playlists, cmd = m.playlists.Update(message)
@@ -390,6 +448,8 @@ func (m *Model) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.searchDialog.View())
 	} else if m.isRenamePlaylistActive {
 		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.inputDialog.View())
+	} else if m.isWaveActive {
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, m.waveDialog.View())
 	}
 
 	playlistView := m.playlists.View()
@@ -435,6 +495,7 @@ func (m *Model) resize(width, height int) {
 
 	m.searchDialog.SetSize(searchWidth, m.height-4)
 	m.inputDialog.SetWidth(searchWidth)
+	m.waveDialog.SetWidth(searchWidth)
 }
 
 func (m *Model) initialLoad() {
@@ -516,7 +577,7 @@ func (m *Model) initialLoad() {
 			cachedTrack := cached.Track
 			myWaveCachedTrack = &cachedTrack
 			go func() {
-				session, err := m.client.RotorNewSession(api.MyWaveId)
+				session, err := m.client.RotorNewSession(api.MyWaveId, waveSettings())
 				if err != nil {
 					log.Print(log.LVL_ERROR, "refresh rotor session: %s", err)
 					return
@@ -527,7 +588,7 @@ func (m *Model) initialLoad() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				session, err := m.client.RotorNewSession(api.MyWaveId)
+				session, err := m.client.RotorNewSession(api.MyWaveId, waveSettings())
 				myWaveSession = session
 				myWaveErr = err
 			}()
@@ -951,6 +1012,42 @@ func (m *Model) shouldCacheTrackMeta(trackId string) bool {
 		return true
 	}
 	return false
+}
+
+func waveSettings() *api.RotorSettings {
+	w := config.Current.Wave
+	if w == nil {
+		return nil
+	}
+	return &api.RotorSettings{
+		MoodEnergy: w.MoodEnergy,
+		Diversity:  w.Diversity,
+		Language:   w.Language,
+	}
+}
+
+func (m *Model) applyWaveSettings() tea.Cmd {
+	config.Current.Wave.MoodEnergy = m.waveDialog.MoodEnergy()
+	config.Current.Wave.Diversity = m.waveDialog.Diversity()
+	config.Current.Wave.Language = m.waveDialog.Language()
+	if err := config.Save(); err != nil {
+		log.Print(log.LVL_WARNIGN, "failed to save wave settings: %s", err)
+	}
+
+	if m.client == nil {
+		return nil
+	}
+
+	go func() {
+		session, err := m.client.RotorNewSession(api.MyWaveId, waveSettings())
+		if err != nil {
+			log.Print(log.LVL_ERROR, "restart rotor session: %s", err)
+			return
+		}
+		m.Send(WaveSettingsAppliedMsg{Session: session})
+	}()
+
+	return nil
 }
 
 func (m *Model) metadataFilePath() string {

@@ -448,12 +448,24 @@ func (client *YaMusicClient) StationFeedback(feedType string, stationId StationI
 	return
 }
 
-func (client *YaMusicClient) RotorNewSession(id StationId) (tracks StationTracks, err error) {
+func (client *YaMusicClient) RotorNewSession(id StationId, settings *RotorSettings) (tracks StationTracks, err error) {
+	seeds := []string{id.String()}
+	if settings != nil {
+		if settings.MoodEnergy != "" {
+			seeds = append(seeds, "settingMoodEnergy:"+settings.MoodEnergy)
+		}
+		if settings.Diversity != "" {
+			seeds = append(seeds, "settingDiversity:"+settings.Diversity)
+		}
+		if settings.Language != "" {
+			seeds = append(seeds, "settingLanguage:"+settings.Language)
+		}
+	}
 	body := map[string]interface{}{
 		"includeTracksInResponse": true,
 		"includeWaveModel":        false,
 		"interactive":             true,
-		"seeds":                   []string{id.String()},
+		"seeds":                   seeds,
 	}
 	tracks, _, err = postRequestJson[StationTracks](client.token,
 		"/rotor/session/new",
