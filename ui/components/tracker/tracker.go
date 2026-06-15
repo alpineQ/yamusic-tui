@@ -409,7 +409,7 @@ func (m *Model) Stop() {
 		m.player.Pause()
 	}
 
-	if m.trackWrapper.trackBuffer.Error() != nil {
+	if m.trackWrapper.trackBuffer != nil && m.trackWrapper.trackBuffer.Error() != nil {
 		m.ShowError("track buffering")
 	}
 
